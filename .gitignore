@@ -1,0 +1,18 @@
+# Virtual environment
+venv/
+__pycache__/
+.ipynb_checkpoints/
+
+# Large file types
+*.h5
+*.exe
+*.dll
+*.zip
+*.mp4
+*.png
+*.jpg
+venv/
+__pycache__/
+*.h5
+*.zip
+*.exe
