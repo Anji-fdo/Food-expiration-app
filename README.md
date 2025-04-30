@@ -6,10 +6,10 @@
 
 | Name with initials | Registration Number | Contact Phone Number | Email | Badge |
 |--------------------|---------------------|-----------------------|-------|-------|
-| Perera P.A.E.U.K | IT21829710 |  0770417101  | [it21829710@my.sliit.lk](mailto:it21815614@my.sliit.lk) | ![Leader](https://img.shields.io/badge/Leader-red) |
-| Kularathna E.M.S.D |  IT21828720  | 0775614161 | [it21828720@my.sliit.lk](mailto:it21834424@my.sliit.lk) | ![Member](https://img.shields.io/badge/Member-green) |
-| Fernando M.G.S.S.A | IT19970882 |  0713441221 | [it19970882@my.sliit.lk](mailto:it21819810@my.sliit.lk) | ![Member](https://img.shields.io/badge/Member-green) |
-| Perera B.C.V|IT20196110  | 0741399030 | [it20196110@my.sliit.lk](mailto:it21838620@my.sliit.lk) | ![Member](https://img.shields.io/badge/Member-green) |
+| Perera P.A.E.U.K | IT21829710 |  0770417101  | [it21829710@my.sliit.lk](mailto:it21829710@my.sliit.lk) | ![Leader](https://img.shields.io/badge/Leader-red) |
+| Kularathna E.M.S.D |  IT21828720  | 0775614161 | [it21828720@my.sliit.lk](mailto:it21828720@my.sliit.lk) | ![Member](https://img.shields.io/badge/Member-green) |
+| Fernando M.G.S.S.A | IT19970882 |  0713441221 | [it19970882@my.sliit.lk](mailto:it19970882@my.sliit.lk) | ![Member](https://img.shields.io/badge/Member-green) |
+| Perera B.C.V|IT20196110  | 0741399030 | [it20196110@my.sliit.lk](mailto:it20196110@my.sliit.lk) | ![Member](https://img.shields.io/badge/Member-green) |
 
 
 # **Brief Description of The Research Problem -**
