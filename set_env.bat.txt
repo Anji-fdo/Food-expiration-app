@@ -1,0 +1,3 @@
+@echo off
+set "MONGO_URI=mongodb+srv://anjanafdoas:*#Anjana89@cluster0.kbkiune.mongodb.net/cluster0?retryWrites=true&w=majority&appName=Cluster0"
+echo MONGO_URI set to: %MONGO_URI%

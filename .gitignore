@@ -16,3 +16,8 @@ __pycache__/
 *.h5
 *.zip
 *.exe
+
+
+# But allow this specific model file
+!models/Fruit_Classifier_All.h5
+
