@@ -12,11 +12,7 @@ export default function Main() {
       <Text style={styles.tryText}>Try this now</Text>
 
       <TouchableOpacity style={styles.button} onPress={() => router.push('/PredictionScreen')}>
-        <Text style={styles.buttonText}>Fruits</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/PredictionScreen')}>
-        <Text style={styles.buttonText}>Vegetables</Text>
+        <Text style={styles.buttonText}>Fruits & Vegetables</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.button} onPress={() => router.push('/HomemadePredictor')}>
@@ -27,9 +23,6 @@ export default function Main() {
         <Text style={styles.buttonText}>Label Foods</Text>
       </TouchableOpacity>
 
-<TouchableOpacity style={styles.button} onPress={() => router.push('/ShelfLifeEstimator')}>
-        <Text style={styles.buttonText}>new</Text>
-      </TouchableOpacity>
 
 
 
