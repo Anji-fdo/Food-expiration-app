@@ -315,6 +315,11 @@ def predict_image_from_bytes(image_bytes, fruit):
             "expiresOn": expiry_date,  # Based on model prediction
             "likelyExpiresOn": likely_expires_on,  # Sensor-adjusted estimate
             "warningNote": warning_note,  # Enhanced warning with scientific backing
+            "currentSensorData": {  # NEW: Always include current sensor readings
+                "temperature": sensor_data.get('temperature', 25.0) if sensor_data else 25.0,
+                "humidity": sensor_data.get('humidity', 60.0) if sensor_data else 60.0,
+                "ethylene": sensor_data.get('gas', 0.0) if sensor_data else 0.0
+            },
             "notifyOneDayBefore": notify_one_day_before,  # For fruits/vegetables
             "notifyThreeHoursBefore": notify_three_hours_before,  # For curries
             "notifyOneHourBefore": notify_one_hour_before  # For curries

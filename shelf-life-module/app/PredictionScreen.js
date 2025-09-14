@@ -234,29 +234,29 @@ const [image, setImage] = useState({ uri: defaultImage });
             <Text style={styles.estimationTitle}>Real-time estimation</Text>
             
             {/* Sensor Data Cards */}
-            <View style={styles.factorCards}>
-              <View style={styles.factorCard}>
-                <Text style={styles.factorIcon}>🌡️</Text>
-                <Text style={styles.factorLabel}>Temp</Text>
-                <Text style={styles.factorValue}>
-                  {result.warningNote.match(/(\d+\.?\d*)°C/)?.[1] || 'N/A'}°C
-                </Text>
-              </View>
-              <View style={styles.factorCard}>
-                <Text style={styles.factorIcon}>💧</Text>
-                <Text style={styles.factorLabel}>Humidity</Text>
-                <Text style={styles.factorValue}>
-                  {result.warningNote.match(/(\d+\.?\d*)%/)?.[1] || 'N/A'}%
-                </Text>
-              </View>
-              <View style={styles.factorCard}>
-                <Text style={styles.factorIcon}>🧪</Text>
-                <Text style={styles.factorLabel}>Ethylene</Text>
-                <Text style={styles.factorValue}>
-                  {result.warningNote.match(/(\d+\.?\d*) ppm/)?.[1] || 'N/A'} ppm
-                </Text>
-              </View>
-            </View>
+<View style={styles.factorCards}>
+  <View style={styles.factorCard}>
+    <Text style={styles.factorIcon}>🌡️</Text>
+    <Text style={styles.factorLabel}>Temp</Text>
+    <Text style={styles.factorValue}>
+      {result.currentSensorData ? `${result.currentSensorData.temperature}°C` : 'N/A'}
+    </Text>
+  </View>
+  <View style={styles.factorCard}>
+    <Text style={styles.factorIcon}>💧</Text>
+    <Text style={styles.factorLabel}>Humidity</Text>
+    <Text style={styles.factorValue}>
+      {result.currentSensorData ? `${result.currentSensorData.humidity}%` : 'N/A'}
+    </Text>
+  </View>
+  <View style={styles.factorCard}>
+    <Text style={styles.factorIcon}>🧪</Text>
+    <Text style={styles.factorLabel}>Ethylene</Text>
+    <Text style={styles.factorValue}>
+      {result.currentSensorData ? `${result.currentSensorData.ethylene} ppm` : 'N/A'}
+    </Text>
+  </View>
+</View>
 
             {/* Enhanced Warning Display */}
             {result.warningNote && (

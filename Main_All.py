@@ -9,7 +9,7 @@ models = {
     'apple': tf.keras.models.load_model(os.path.join('models', 'best_efficientnet_apple_model.keras')),
     'bell': tf.keras.models.load_model(os.path.join('models', 'best_efficientnet_bell_model.keras')),
     'tomatoes': tf.keras.models.load_model(os.path.join('models', 'best_efficientnet_tomato_model.keras')),
-    'carrots': tf.keras.models.load_model(os.path.join('models', 'best_mobilenet_carrot_model.keras')),
+    'carrots': tf.keras.models.load_model(os.path.join('models', 'best_efficientnet_carrot_model.keras')),
     'bitter': tf.keras.models.load_model(os.path.join('models', 'best_mobilenet_bitter_model.keras'))
 }
 
@@ -31,7 +31,7 @@ target_sizes = {
     'apple': (256, 256),
     'bell': (256, 256),
     'tomatoes': (300, 300),
-    'carrots': (256, 256),
+    'carrots': (224, 224),
     'bitter': (224, 224)
 }
 
@@ -40,7 +40,7 @@ preprocessing_functions = {
     'apple': tf.keras.applications.efficientnet.preprocess_input,
     'bell': tf.keras.applications.efficientnet.preprocess_input,
     'tomatoes': tf.keras.applications.efficientnet.preprocess_input,
-    'carrots': tf.keras.applications.mobilenet_v2.preprocess_input,
+    'carrots': tf.keras.applications.efficientnet.preprocess_input,
     'bitter': tf.keras.applications.mobilenet_v2.preprocess_input
 }
 
