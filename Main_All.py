@@ -4,15 +4,21 @@ import numpy as np
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
 # ==========================================================
-# 📦 Load Unified Model (replaces all 6 old ones)
+# 📦 Lazy model loader (loads only when needed)
 # ==========================================================
 model_path = os.path.join('models', 'final_combined_food_model.keras')
+model = None
 
-if not os.path.exists(model_path):
-    raise FileNotFoundError(f"❌ Model file not found at: {model_path}")
-
-model = tf.keras.models.load_model(model_path)
-print(f"✅ Loaded unified food ripeness model from: {model_path}")
+def get_model():
+    """Load the unified food ripeness model only once."""
+    global model
+    if model is None:
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"❌ Model file not found at: {model_path}")
+        print("🧠 Loading unified model for the first time...")
+        model = tf.keras.models.load_model(model_path)
+        print(f"✅ Model loaded successfully from: {model_path}")
+    return model
 
 # ==========================================================
 # 🏷️ Food stage mappings (same as before)
@@ -39,16 +45,16 @@ class_labels = [
 ]
 
 # ==========================================================
-# ⚙️ Preprocessing setup (unified EfficientNet pipeline)
+# ⚙️ Preprocessing setup (EfficientNet pipeline)
 # ==========================================================
 target_size = (160, 160)
 preprocess = tf.keras.applications.efficientnet.preprocess_input
 
 # ==========================================================
-# 🧠 Prediction function (identical signature & behavior)
+# 🧠 Prediction function
 # ==========================================================
 def predict_image(image_path, fruit):
-    """Predict the stage for a given fruit using the unified EfficientNet model."""
+    """Predict the ripeness stage for a given fruit using the unified EfficientNet model."""
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"❌ Image file not found: {image_path}")
 
@@ -58,8 +64,9 @@ def predict_image(image_path, fruit):
     img = preprocess(img)
     img = np.expand_dims(img, axis=0)
 
-    # Predict
-    pred = model.predict(img)
+    # Load model only once
+    m = get_model()
+    pred = m.predict(img)
     stage_idx = np.argmax(pred, axis=-1)[0]
     probabilities = pred[0]
 
@@ -68,19 +75,17 @@ def predict_image(image_path, fruit):
     # Get predicted class label
     predicted_class = class_labels[stage_idx]
 
-    # Extract fruit and stage (format: 'fruit_stage')
     if "_" in predicted_class:
         predicted_fruit, stage = predicted_class.split("_", 1)
     else:
         predicted_fruit, stage = fruit, "Unknown"
 
-    # Ensure the stage corresponds to the selected fruit’s mapping
+    # Validate prediction
     if predicted_fruit.lower() == fruit.lower():
-        valid_stages = food_stages[fruit.lower()]
+        valid_stages = food_stages.get(fruit.lower(), [])
         if stage not in valid_stages:
             print(f"⚠️ Warning: Predicted stage '{stage}' not in {fruit}'s stage list")
     else:
         print(f"⚠️ Warning: Predicted fruit ({predicted_fruit}) differs from selected fruit ({fruit})")
 
-    # ✅ Return only stage (same output format)
     return stage
