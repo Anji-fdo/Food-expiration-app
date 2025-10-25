@@ -33,7 +33,7 @@ export default function HistoryScreen() {
 
   const loadHistory = async () => {
     try {
-      const response = await fetch('http://172.20.10.2:5000/history');
+      const response = await fetch('http://98.88.90.67:5000/history');
       if (!response.ok) throw new Error('Failed to fetch history');
       const all = await response.json();
 
