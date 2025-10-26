@@ -4,6 +4,7 @@ import {
   Text,
   Switch,
   TextInput,
+  Button,
   Alert,
   StyleSheet,
   TouchableOpacity,
@@ -13,12 +14,15 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import DhalImage from '../assets/images/dhall.jpg';
 import MeatImage from '../assets/images/meat.jpg';
 import defaultImage from '../assets/images/homemade.jpeg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
 
-// Handle notifications globally
+
+
+// Request notification permissions
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -27,17 +31,19 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Function to save notifications to AsyncStorage
+// Save notifications to local history
 const saveNotificationToHistory = async (notification) => {
   try {
     const existing = await AsyncStorage.getItem('notificationHistory');
     const history = existing ? JSON.parse(existing) : [];
-    history.unshift(notification); // newest first
+    history.unshift(notification);
     await AsyncStorage.setItem('notificationHistory', JSON.stringify(history));
   } catch (error) {
     console.error('Error saving notification history:', error);
   }
 };
+
+
 
 export default function HomemadePredictor() {
   const [selectedFood, setSelectedFood] = useState(null);
@@ -53,32 +59,79 @@ export default function HomemadePredictor() {
   const router = useRouter();
   const [image, setImage] = useState({ uri: defaultImage });
 
+  const [appState, setAppState] = useState(AppState.currentState);
+
+
+// 🔹 Track if app is in background or foreground
+useEffect(() => {
+  const subscription = AppState.addEventListener('change', nextAppState => {
+    setAppState(nextAppState);
+  });
+  return () => subscription.remove();
+}, []);
+
+// 🔹 Listen for notifications actually being delivered
+useEffect(() => {
+  const subscription = Notifications.addNotificationReceivedListener(async notification => {
+    if (appState !== 'active') {
+      await saveNotificationToHistory({
+        title: notification.request.content.title,
+        body: notification.request.content.body,
+        time: new Date().toISOString(),
+      });
+    }
+  });
+  return () => subscription.remove();
+}, [appState]);
+
+
   useEffect(() => {
     (async () => {
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission required', 'Please enable notifications for alerts.');
+        Alert.alert('Permission required', 'Notification permissions are needed for alerts.');
+      } else {
+        console.log('Notification permissions granted');
       }
     })();
   }, []);
 
   const handleFoodSelection = () => {
-    Alert.alert("Select Homemade Food", "", [
-      { text: "Dhal Curry", onPress: () => setSelectedFood("Dhal Curry") },
-      { text: "Meat Curry", onPress: () => setSelectedFood("Meat Curry") },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    Alert.alert(
+      "Select Homemade Food",
+      "",
+      [
+        { text: "Dhal Curry", onPress: () => setSelectedFood("Dhal Curry") },
+        { text: "Meat Curry", onPress: () => setSelectedFood("Meat Curry") },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
   };
 
   const handleSubmit = async () => {
-    if (!selectedFood) return Alert.alert("Error", "Please select a food type first.");
-    if (isExpired) return Alert.alert('Prediction', `${selectedFood} is already expired.`);
+    if (!selectedFood) {
+      Alert.alert("Error", "Please select a food type first.");
+      return;
+    }
+
+    if (isExpired) {
+      Alert.alert('Prediction', `${selectedFood} is already expired.`);
+      return;
+    }
 
     const cookedHours = parseFloat(hours);
-    if (isNaN(cookedHours)) return Alert.alert('Error', 'Please enter valid hours.');
-    if (!storage) return Alert.alert('Error', 'Please select storage method.');
+    if (isNaN(cookedHours)) {
+      Alert.alert('Error', 'Please enter a valid number of hours.');
+      return;
+    }
+
+    if (!storage) {
+      Alert.alert('Error', 'Please select storage method.');
+      return;
+    }
 
     setLoading(true);
+
     try {
       const selectedIngredients = Object.entries(ingredients)
         .filter(([_, value]) => value)
@@ -103,50 +156,65 @@ export default function HomemadePredictor() {
       const data = await response.json();
       setLoading(false);
 
-      if (data.error) return Alert.alert('Server Error', data.error);
-
-      console.log('Response data:', data);
-      const now = new Date();
-
-      // 3-hour notification
-      if (data.notifyThreeHoursBefore) {
-        const threeHoursTrigger = new Date(data.notifyThreeHoursBefore);
-        if (threeHoursTrigger > now) {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: `${data.food} - 3 Hours Left`,
-              body: 'Your curry will expire in 3 hours!',
-              sound: 'default',
-            },
-            trigger: threeHoursTrigger,
-          });
-          await saveNotificationToHistory({
-            title: `${data.food} - 3 Hours Left`,
-            body: 'Your curry will expire in 3 hours!',
-            time: threeHoursTrigger.toISOString(),
-          });
-        }
+      if (!data || typeof data !== 'object') {
+        Alert.alert('Error', 'Invalid response from server.');
+        return;
       }
 
-      // 1-hour notification
-      if (data.notifyOneHourBefore) {
-        const oneHourTrigger = new Date(data.notifyOneHourBefore);
-        if (oneHourTrigger > now) {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: `${data.food} - 1 Hour Left`,
-              body: 'Your curry will expire in 1 hour!',
-              sound: 'default',
-            },
-            trigger: oneHourTrigger,
-          });
-          await saveNotificationToHistory({
-            title: `${data.food} - 1 Hour Left`,
-            body: 'Your curry will expire in 1 hour!',
-            time: oneHourTrigger.toISOString(),
-          });
-        }
+      if (data.error) {
+        Alert.alert('Server Error', data.error);
+        return;
       }
+
+try {
+  const now = new Date();
+  const hoursLeft = Math.max(0, Number(data.hoursRemaining) || 0);
+
+  // --- Immediate alert ---
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `${data.food} - Freshness Alert`,
+      body: `Your ${data.food} will expire in ${hoursLeft} hours!`,
+      sound: 'default',
+    },
+    trigger: null, // show now
+  });
+
+  await saveNotificationToHistory({
+    title: `${data.food} - Freshness Alert`,
+    body: `Your ${data.food} will expire in ${hoursLeft} hours!`,
+    time: now.toISOString(),
+  });
+
+  // --- Scheduled alerts using absolute times ---
+  if (hoursLeft > 3) {
+    const threeHourTime = new Date(now.getTime() + (hoursLeft - 3) * 3600 * 1000);
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `${data.food} - Expiration Alert`,
+        body: `Your ${data.food} will expire in 3 hours!`,
+        sound: 'default',
+      },
+      trigger: threeHourTime, // absolute time!
+    });
+  }
+
+  if (hoursLeft > 1) {
+    const oneHourTime = new Date(now.getTime() + (hoursLeft - 1) * 3600 * 1000);
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `${data.food} - Expiration Alert`,
+        body: `Your ${data.food} will expire in 1 hour!`,
+        sound: 'default',
+      },
+      trigger: oneHourTime, // absolute time!
+    });
+  }
+
+} catch (error) {
+  console.error('Notification scheduling error:', error);
+}
+
 
       Alert.alert(
         `${data.food} - ${data.status}`,
@@ -155,14 +223,14 @@ export default function HomemadePredictor() {
     } catch (error) {
       console.error('Fetch error:', error);
       setLoading(false);
-      Alert.alert('Error', 'Unable to connect to server.');
+      Alert.alert('Error', 'Unable to connect or parse server response.');
     }
   };
 
   const getFoodImage = () => {
     if (selectedFood === 'Dhal Curry') return DhalImage;
     if (selectedFood === 'Meat Curry') return MeatImage;
-    return defaultImage;
+    return null;
   };
 
   const getIngredientEmoji = (ingredient) => {
@@ -178,25 +246,47 @@ export default function HomemadePredictor() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/Main')}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => router.push('/Main')}
+        >
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Homemade Predictor</Text>
         <View style={styles.placeholder} />
       </View>
 
-      {/* Green image card */}
-      <View style={styles.greenCard}>
-        <View style={styles.imageContainer}>
-          <Image source={getFoodImage()} style={styles.displayImage} />
-        </View>
-      </View>
+      
 
-      {/* Content */}
+<View style={styles.greenCard}>
+  <View style={styles.imageContainer}>
+    {selectedFood && getFoodImage() ? (
+      <Image source={getFoodImage()} style={styles.displayImage} />
+    ) : (
+      <Image source={require('../assets/images/homemade.jpeg')} style={styles.displayImage} /> // Default image
+    )}
+  </View>
+  
+  <View style={styles.stepIndicator}>
+    <View style={styles.stepDot} />
+    <View style={styles.stepDot} />
+    <View style={styles.stepDot} />
+  </View>
+</View>
+
+      {/* White Content Card */}
       <ScrollView style={styles.contentCard} showsVerticalScrollIndicator={false}>
         {!selectedFood ? (
           <>
             <Text style={styles.foodTitle}>Select Your Curry</Text>
+            <Text style={styles.foodDescription}>
+              Choose the homemade curry you want to analyze for freshness and safety
+            </Text>
+            
+            <View style={styles.ratingContainer}>
+              <Text style={styles.ratingText}>⭐ Homemade • 🔥 Fresh • ⏱️ Quick Check</Text>
+            </View>
+
             <TouchableOpacity style={styles.selectButton} onPress={handleFoodSelection}>
               <Text style={styles.selectButtonText}>Select Food Type</Text>
             </TouchableOpacity>
@@ -204,14 +294,21 @@ export default function HomemadePredictor() {
         ) : (
           <>
             <Text style={styles.foodTitle}>{selectedFood}</Text>
+            <Text style={styles.foodDescription}>
+              Fresh homemade curry with traditional spices and ingredients. Please provide details below for accurate analysis.
+            </Text>
+            
+            <View style={styles.ratingContainer}>
+              <Text style={styles.ratingText}>⭐ 4.8 • 🔥 Homemade • ⏱️ Analysis Ready</Text>
+            </View>
 
-            {/* Expired toggle */}
+            {/* Expired Toggle */}
             <View style={styles.sectionContainer}>
               <Text style={styles.sectionTitle}>Quality Check</Text>
               <View style={styles.toggleContainer}>
                 <Text style={styles.toggleLabel}>Is this curry already expired?</Text>
-                <Switch
-                  value={isExpired}
+                <Switch 
+                  value={isExpired} 
                   onValueChange={setIsExpired}
                   trackColor={{ false: '#ddd', true: '#7CB342' }}
                   thumbColor={isExpired ? '#fff' : '#f4f3f4'}
@@ -221,19 +318,20 @@ export default function HomemadePredictor() {
 
             {!isExpired && (
               <>
-                {/* Hours input */}
+                {/* Hours Input */}
                 <View style={styles.sectionContainer}>
                   <Text style={styles.sectionTitle}>Cooking Time</Text>
+                  <Text style={styles.inputLabel}>When was this cooked? (hours ago)</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="Enter hours since cooked"
+                    placeholder="e.g. 6"
                     keyboardType="numeric"
                     value={hours}
                     onChangeText={setHours}
                   />
                 </View>
 
-                {/* Storage options */}
+                {/* Storage Options */}
                 <View style={styles.sectionContainer}>
                   <Text style={styles.sectionTitle}>Storage Method</Text>
                   <View style={styles.storageOptions}>
@@ -242,14 +340,18 @@ export default function HomemadePredictor() {
                       onPress={() => setStorage('Fridge')}
                     >
                       <Text style={styles.storageEmoji}>🥶</Text>
-                      <Text style={styles.storageText}>Fridge</Text>
+                      <Text style={[styles.storageText, storage === 'Fridge' && styles.selectedStorageText]}>
+                        Fridge
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.storageOption, storage === 'Room' && styles.selectedStorage]}
                       onPress={() => setStorage('Room')}
                     >
                       <Text style={styles.storageEmoji}>🌡️</Text>
-                      <Text style={styles.storageText}>Room Temp</Text>
+                      <Text style={[styles.storageText, storage === 'Room' && styles.selectedStorageText]}>
+                        Room Temp
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -267,16 +369,21 @@ export default function HomemadePredictor() {
                         }
                       >
                         <Text style={styles.ingredientEmoji}>{getIngredientEmoji(key)}</Text>
-                        <Text style={styles.ingredientText}>
+                        <Text style={[styles.ingredientText, value && styles.selectedIngredientText]}>
                           {key === 'coconutMilk' ? 'Coconut Milk' : key.charAt(0).toUpperCase() + key.slice(1)}
                         </Text>
+                        {value && <Text style={styles.checkmark}>✓</Text>}
                       </TouchableOpacity>
                     ))}
                   </View>
                 </View>
 
-                {/* Submit */}
-                <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading}>
+                {/* Submit Button */}
+                <TouchableOpacity 
+                  style={styles.submitButton} 
+                  onPress={handleSubmit}
+                  disabled={loading}
+                >
                   {loading ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
@@ -288,13 +395,12 @@ export default function HomemadePredictor() {
           </>
         )}
 
-        {/* Links */}
-        <TouchableOpacity style={styles.linkButton} onPress={() => router.push('/HistoryScreen')}>
+        {/* Navigation Links */}
+        <TouchableOpacity 
+          style={styles.linkButton}
+          onPress={() => router.push('/HistoryScreen')}
+        >
           <Text style={styles.linkText}>📋 View Prediction History</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.linkButton} onPress={() => router.push('/NotificationHistoryScreen')}>
-          <Text style={styles.linkText}>🔔 View Notifications</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -302,66 +408,262 @@ export default function HomemadePredictor() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#7CB342' },
+  container: {
+    flex: 1,
+    backgroundColor: '#7CB342',
+  },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 60, paddingHorizontal: 20, paddingBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
   },
   backButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backIcon: { fontSize: 20, color: 'white', fontWeight: 'bold' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: 'white' },
-  placeholder: { width: 40 },
-  greenCard: { alignItems: 'center', paddingBottom: 20 },
+  backIcon: {
+    fontSize: 20,
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  placeholder: {
+    width: 40,
+  },
+  greenCard: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+  },
   imageContainer: {
-    width: 200, height: 200, borderRadius: 100, backgroundColor: 'white',
-    alignItems: 'center', justifyContent: 'center',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    marginBottom: 20,
   },
-  displayImage: { width: 180, height: 180, borderRadius: 90 },
+  displayImage: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+  },
+  placeholderImage: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  foodIcon: {
+    fontSize: 60,
+  },
+  stepIndicator: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  stepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
   contentCard: {
-    flex: 1, backgroundColor: '#f8f9fa',
-    borderTopLeftRadius: 25, borderTopRightRadius: 25,
-    paddingHorizontal: 20, paddingTop: 25,
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    paddingHorizontal: 20,
+    paddingTop: 25,
   },
-  foodTitle: { fontSize: 26, fontWeight: 'bold', color: '#333', marginBottom: 15 },
+  foodTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+  },
+  foodDescription: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 15,
+    lineHeight: 22,
+  },
+  ratingContainer: {
+    marginBottom: 25,
+  },
+  ratingText: {
+    fontSize: 16,
+    color: '#666',
+  },
   selectButton: {
-    height: 50, backgroundColor: '#7CB342', borderRadius: 25,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 20,
+    height: 50,
+    backgroundColor: '#7CB342',
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 30,
+    elevation: 3,
   },
-  selectButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
-  sectionContainer: { marginBottom: 25 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginBottom: 10 },
+  selectButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  sectionContainer: {
+    marginBottom: 25,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
+  },
   toggleContainer: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#fff', padding: 15, borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    elevation: 2,
   },
-  toggleLabel: { fontSize: 16, color: '#333', flex: 1 },
+  toggleLabel: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+    marginRight: 15,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
   input: {
-    height: 50, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 15,
-    fontSize: 16, borderWidth: 1, borderColor: '#ddd',
+    height: 50,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    elevation: 2,
   },
-  storageOptions: { flexDirection: 'row', gap: 15 },
+  storageOptions: {
+    flexDirection: 'row',
+    gap: 15,
+  },
   storageOption: {
-    flex: 1, backgroundColor: '#fff', padding: 20, borderRadius: 12,
-    alignItems: 'center', borderWidth: 2, borderColor: 'transparent',
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    elevation: 2,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  selectedStorage: { borderColor: '#7CB342', backgroundColor: '#f8fff8' },
-  storageEmoji: { fontSize: 22, marginBottom: 8 },
-  storageText: { fontSize: 14, color: '#333' },
-  ingredientsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  selectedStorage: {
+    borderColor: '#7CB342',
+    backgroundColor: '#f8fff8',
+  },
+  storageEmoji: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  storageText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  selectedStorageText: {
+    color: '#7CB342',
+    fontWeight: '600',
+  },
+  ingredientsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
   ingredientCard: {
-    backgroundColor: '#fff', padding: 15, borderRadius: 12,
-    alignItems: 'center', minWidth: 100, borderWidth: 2, borderColor: 'transparent',
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    minWidth: 100,
+    elevation: 2,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    position: 'relative',
   },
-  selectedIngredient: { borderColor: '#7CB342', backgroundColor: '#f8fff8' },
-  ingredientEmoji: { fontSize: 22, marginBottom: 5 },
-  ingredientText: { fontSize: 12, color: '#333', textAlign: 'center' },
+  selectedIngredient: {
+    borderColor: '#7CB342',
+    backgroundColor: '#f8fff8',
+  },
+  ingredientEmoji: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  ingredientText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  selectedIngredientText: {
+    color: '#7CB342',
+    fontWeight: '600',
+  },
+  checkmark: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    color: '#7CB342',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   submitButton: {
-    height: 50, backgroundColor: '#7CB342', borderRadius: 25,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 20,
+    height: 50,
+    backgroundColor: '#7CB342',
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    elevation: 3,
   },
-  submitButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
-  linkButton: { alignItems: 'center', paddingVertical: 12 },
-  linkText: { color: '#7CB342', fontSize: 16, fontWeight: '500' },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  linkButton: {
+    alignItems: 'center',
+    paddingVertical: 15,
+    marginBottom: 30,
+  },
+  linkText: {
+    color: '#7CB342',
+    fontSize: 16,
+    fontWeight: '500',
+  },
 });
